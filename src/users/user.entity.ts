@@ -1,9 +1,11 @@
+import { Budget } from 'src/budgets/entities/budget.entity';
 import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  OneToMany,
 } from 'typeorm';
 
 export enum UserRole {
@@ -37,4 +39,7 @@ export class User {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @OneToMany(() => Budget, (budget) => budget.seller)
+  budgets: Budget[];
 }
