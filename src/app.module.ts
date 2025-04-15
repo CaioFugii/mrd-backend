@@ -6,6 +6,7 @@ import pinoConfig from './pino.config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { UsersModule } from './users/user.module';
 import { AuthModule } from './auth/auth.module';
+import { ProductsModule } from './products/products.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { AuthModule } from './auth/auth.module';
     }),
     UsersModule,
     AuthModule,
+    ProductsModule,
   ],
 })
 export class AppModule {}
