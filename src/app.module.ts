@@ -1,10 +1,36 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { LoggerModule, Params } from 'nestjs-pino';
+import pinoConfig from './pino.config';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { UsersModule } from './users/user.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
-  imports: [],
-  controllers: [AppController],
-  providers: [AppService],
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    LoggerModule.forRoot(pinoConfig as Params),
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (config: ConfigService) => ({
+        type: 'postgres',
+        url: config.get('DATABASE_URL'),
+        autoLoadEntities: true,
+        synchronize: true, // cuidado: só em dev!
+      }),
+      inject: [ConfigService],
+    }),
+    ThrottlerModule.forRoot({
+      throttlers: [
+        {
+          ttl: 60000,
+          limit: 10,
+        },
+      ],
+    }),
+    UsersModule,
+    AuthModule,
+  ],
 })
 export class AppModule {}
