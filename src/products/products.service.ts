@@ -1,9 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Product } from './product.entity';
 import { Repository } from 'typeorm';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { User, UserRole } from 'src/users/user.entity';
 
 @Injectable()
 export class ProductsService {
@@ -12,7 +17,12 @@ export class ProductsService {
     private readonly productRepo: Repository<Product>,
   ) {}
 
-  async create(dto: CreateProductDto): Promise<Product> {
+  async create(dto: CreateProductDto, user: User): Promise<Product> {
+    if (user.role !== UserRole.SUPER_USER) {
+      throw new ForbiddenException(
+        'Você não tem permissão para criar produto.',
+      );
+    }
     const product = this.productRepo.create(dto);
     return this.productRepo.save(product);
   }
@@ -57,13 +67,27 @@ export class ProductsService {
     return product;
   }
 
-  async update(id: string, dto: UpdateProductDto): Promise<Product> {
+  async update(
+    id: string,
+    dto: UpdateProductDto,
+    user: User,
+  ): Promise<Product> {
+    if (user.role !== UserRole.SUPER_USER) {
+      throw new ForbiddenException(
+        'Você não tem permissão para atualizar produto.',
+      );
+    }
     const product = await this.findOne(id);
     Object.assign(product, dto);
     return this.productRepo.save({ ...product, updatedAt: new Date() });
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: string, user: User): Promise<void> {
+    if (user.role !== UserRole.SUPER_USER) {
+      throw new ForbiddenException(
+        'Você não tem permissão para deletar produto.',
+      );
+    }
     const product = await this.findOne(id);
     await this.productRepo.remove(product);
   }

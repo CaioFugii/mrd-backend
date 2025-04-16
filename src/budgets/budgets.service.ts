@@ -1,11 +1,18 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Budget } from './entities/budget.entity';
 import { BudgetItem } from './entities/budget-item.entity';
 import { Product } from '../products/product.entity';
 import { CreateBudgetDto } from './dto/create-budget.dto';
 import { User, UserRole } from '../users/user.entity';
+import { BudgetQueryDto } from './dto/budget-query.dto';
+import { MAX_DISCOUNT } from 'src/shared/constants';
 
 @Injectable()
 export class BudgetsService {
@@ -20,91 +27,203 @@ export class BudgetsService {
     private readonly productRepo: Repository<Product>,
   ) {}
 
-  async create(createBudgetDto: CreateBudgetDto, seller: User) {
-    const { customerName, customerEmail, items, discountPercent } =
-      createBudgetDto;
-
-    const productIds = items.map((item) => item.productId);
-    const products = await this.productRepo.findBy({ id: In(productIds) });
-
-    if (products.length !== productIds.length) {
-      throw new NotFoundException('Um ou mais produtos não foram encontrados.');
+  async create(createDto: CreateBudgetDto, user: User): Promise<Budget> {
+    if (!createDto.items.length) {
+      throw new BadRequestException('Este orçamento precisa possuir itens.');
     }
 
-    const budgetItems: BudgetItem[] = [];
-    let subtotal = 0;
-
-    for (const item of items) {
-      const product = products.find((p) => p.id === item.productId);
-      if (!product) continue;
-
-      const totalPrice = Number(product.price) * item.quantity;
-      subtotal += totalPrice;
-
-      const budgetItem = this.budgetItemRepo.create({
-        product,
-        quantity: item.quantity,
-        unitPrice: Number(product.price),
-        totalPrice,
-      });
-
-      budgetItems.push(budgetItem);
-    }
-
-    const discount = (subtotal * discountPercent) / 100;
-    const total = subtotal - discount;
-
-    const requiresApproval = discountPercent > 5;
-
-    const budget = this.budgetRepo.create({
-      seller,
-      customerName,
-      customerEmail,
-      discountPercent,
-      total,
-      requiresApproval,
-      items: budgetItems,
+    const budgetInsertResult = await this.budgetRepo.insert({
+      customerName: createDto.customerName,
+      customerEmail: createDto.customerEmail,
+      customerPhone: createDto.customerPhone,
+      requiresApproval: (createDto.discountPercent || 0) > MAX_DISCOUNT,
+      discountPercent: createDto.discountPercent || 0,
+      approved: (createDto.discountPercent || 0) <= MAX_DISCOUNT,
+      approvedAt:
+        (createDto.discountPercent || 0) <= MAX_DISCOUNT ? new Date() : null,
+      seller: { id: user.id },
+      approvedBy: null,
+      rejectedBy: null,
+      rejectedAt: null,
+      rejectionReason: null,
+      rejected: false,
+      total: 0,
     });
 
-    return this.budgetRepo.save(budget);
+    const budgetId = budgetInsertResult.identifiers[0].id;
+
+    const budget = await this.budgetRepo.findOneByOrFail({ id: budgetId });
+
+    const items: BudgetItem[] = [];
+
+    for (const itemDto of createDto.items) {
+      const product = await this.productRepo.findOneByOrFail({
+        id: itemDto.productId,
+      });
+
+      const unitPrice = Number(product.price);
+      const quantity = itemDto.quantity;
+      const totalPrice = unitPrice * quantity;
+
+      items.push(
+        this.budgetItemRepo.create({
+          product: { id: product.id },
+          productNameSnapshot: product.name,
+          unitPriceSnapshot: unitPrice,
+          quantity,
+          totalPrice,
+          budget: { id: budget.id },
+        }),
+      );
+    }
+
+    await this.budgetItemRepo.insert(items);
+
+    const total = this.calculateTotal(items, createDto.discountPercent || 0);
+
+    await this.budgetRepo.update(budget.id, { total });
+
+    return this.budgetRepo.findOneOrFail({
+      where: { id: budget.id },
+      relations: ['items'],
+    });
+  }
+
+  private calculateTotal(items: BudgetItem[], discountPercent: number) {
+    const subtotal = items.reduce(
+      (sum, item) => sum + Number(item.totalPrice),
+      0,
+    );
+    const discount = subtotal * (discountPercent / 100);
+    return subtotal - discount;
   }
 
   async findAll(
     user: User,
-    options: {
-      search?: string;
-      page?: number;
-      limit?: number;
-    },
-  ): Promise<{
-    data: Budget[];
-    total: number;
-    page: number;
-    limit: number;
-  }> {
-    const { search, page = 1, limit = 10 } = options;
-
+    query: BudgetQueryDto,
+  ): Promise<{ data: Budget[]; total: number; page: number; limit: number }> {
     const qb = this.budgetRepo
       .createQueryBuilder('budget')
+      .leftJoinAndSelect('budget.seller', 'seller')
       .leftJoinAndSelect('budget.items', 'items')
-      .leftJoinAndSelect('items.product', 'product')
-      .leftJoinAndSelect('budget.seller', 'seller');
+      .leftJoinAndSelect('items.product', 'product');
 
-    if (search) {
-      qb.andWhere('LOWER(budget.customerName) LIKE :search', {
-        search: `%${search.toLowerCase()}%`,
+    if (user.role !== UserRole.SUPER_USER) {
+      qb.where('seller.id = :sellerId', { sellerId: user.id });
+    }
+
+    if (query.customerName) {
+      qb.andWhere('LOWER(budget.customerName) LIKE :customerName', {
+        customerName: `%${query.customerName.toLowerCase()}%`,
       });
     }
 
-    if (user.role !== UserRole.SUPER_USER) {
-      qb.andWhere('budget.sellerId = :sellerId', { sellerId: user.id });
+    if (query.onlyApproved) {
+      qb.andWhere('budget.approved = true');
     }
 
-    qb.orderBy('budget.createdAt', 'DESC');
+    if (query.onlyPendingApproval) {
+      qb.andWhere('budget.requiresApproval = true AND budget.approved = false');
+    }
+
+    qb.orderBy('budget.createdAt', query.orderBy || 'DESC');
+
+    const page = query.page || 1;
+    const limit = query.limit || 10;
+
     qb.skip((page - 1) * limit).take(limit);
 
     const [data, total] = await qb.getManyAndCount();
 
     return { data, total, page, limit };
+  }
+
+  async findOne(id: string, user: User): Promise<Budget> {
+    const budget = await this.budgetRepo.findOne({
+      where: { id },
+      relations: ['items', 'items.product', 'seller'],
+    });
+
+    if (!budget) {
+      throw new NotFoundException('Orçamento não encontrado.');
+    }
+
+    if (user.role !== UserRole.SUPER_USER && budget.seller.id !== user.id) {
+      throw new BadRequestException(
+        'Você não tem permissão para acessar orçamento.',
+      );
+    }
+
+    return budget;
+  }
+
+  async approve(id: string, user: User): Promise<void> {
+    if (user.role !== UserRole.SUPER_USER) {
+      throw new ForbiddenException(
+        'Você não tem permissão para aprovar orçamento.',
+      );
+    }
+
+    const budget = await this.budgetRepo.findOne({
+      where: { id },
+    });
+
+    if (!budget) {
+      throw new NotFoundException('Orçamento não encontrado.');
+    }
+
+    if (!budget.requiresApproval) {
+      throw new BadRequestException('Este orçamento não requer aprovação.');
+    }
+
+    if (budget.approved) {
+      throw new BadRequestException('Este orçamento já foi aprovado.');
+    }
+
+    budget.approved = true;
+    budget.approvedAt = new Date();
+    budget.approvedBy = user;
+
+    await this.budgetRepo.save(budget);
+  }
+
+  async reject(id: string, reason: string, user: User): Promise<void> {
+    if (user.role !== UserRole.SUPER_USER) {
+      throw new ForbiddenException(
+        'Você não tem permissão para rejeitar orçamento.',
+      );
+    }
+
+    if (!reason) {
+      throw new BadRequestException('Forneça um motivo da rejeição.');
+    }
+
+    const budget = await this.budgetRepo.findOne({
+      where: { id },
+      relations: ['rejectedBy'],
+    });
+
+    if (!budget) {
+      throw new NotFoundException('Orçamento não encontrado.');
+    }
+
+    if (!budget.requiresApproval) {
+      throw new BadRequestException('Este orçamento não requer aprovação.');
+    }
+
+    if (budget.approved) {
+      throw new BadRequestException('Orçamento já foi aprovado.');
+    }
+
+    if (budget.rejected) {
+      throw new BadRequestException('Orçamento já foi rejeitado.');
+    }
+
+    budget.rejected = true;
+    budget.rejectedAt = new Date();
+    budget.rejectedBy = user;
+    budget.rejectionReason = reason;
+
+    await this.budgetRepo.save(budget);
   }
 }

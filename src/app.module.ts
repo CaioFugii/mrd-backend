@@ -7,6 +7,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { UsersModule } from './users/user.module';
 import { AuthModule } from './auth/auth.module';
 import { ProductsModule } from './products/products.module';
+import { BudgetsModule } from './budgets/budgets.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { ProductsModule } from './products/products.module';
     UsersModule,
     AuthModule,
     ProductsModule,
+    BudgetsModule,
   ],
 })
 export class AppModule {}

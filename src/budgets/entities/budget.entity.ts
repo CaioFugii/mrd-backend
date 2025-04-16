@@ -24,17 +24,35 @@ export class Budget {
   @Column()
   customerEmail: string;
 
+  @Column()
+  customerPhone: string;
+
   @Column({ default: 0 })
   discountPercent: number;
 
   @Column({ default: false })
   requiresApproval: boolean;
 
-  @OneToMany(() => BudgetItem, (item) => item.budget, {
-    cascade: true,
-    eager: true,
-  })
-  items: BudgetItem[];
+  @Column({ default: false })
+  approved: boolean;
+
+  @Column({ type: 'timestamp', nullable: true })
+  approvedAt: Date;
+
+  @ManyToOne(() => User, { nullable: true })
+  approvedBy: User;
+
+  @Column({ default: false })
+  rejected: boolean;
+
+  @Column({ type: 'timestamp', nullable: true })
+  rejectedAt: Date;
+
+  @ManyToOne(() => User, { nullable: true })
+  rejectedBy: User;
+
+  @Column({ nullable: true })
+  rejectionReason: string;
 
   @Column('decimal', { precision: 10, scale: 2 })
   total: number;
@@ -44,4 +62,17 @@ export class Budget {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @Column({
+    type: 'integer',
+    unique: true,
+    default: () => "nextval('budget_seq')",
+  })
+  sequentialNumber: number;
+
+  @OneToMany(() => BudgetItem, (item) => item.budget, {
+    cascade: true,
+    eager: true,
+  })
+  items: BudgetItem[];
 }

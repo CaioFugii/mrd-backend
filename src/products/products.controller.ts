@@ -12,9 +12,10 @@ import {
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { UserRole } from '../users/user.entity';
+import { User, UserRole } from '../users/user.entity';
 import { Roles, RolesGuard } from 'src/shared/guard/roles.guard';
 import { JwtAuthGuard } from 'src/shared/guard/jwt-auth.guard';
+import { CurrentUser } from 'src/shared/decorators/current-user.decorator';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('products')
@@ -23,8 +24,8 @@ export class ProductsController {
 
   @Post()
   @Roles(UserRole.SUPER_USER)
-  create(@Body() dto: CreateProductDto) {
-    return this.productsService.create(dto);
+  create(@Body() dto: CreateProductDto, @CurrentUser() user: User) {
+    return this.productsService.create(dto, user);
   }
 
   @Get()
@@ -51,13 +52,17 @@ export class ProductsController {
 
   @Put(':id')
   @Roles(UserRole.SUPER_USER)
-  update(@Param('id') id: string, @Body() dto: UpdateProductDto) {
-    return this.productsService.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateProductDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.productsService.update(id, dto, user);
   }
 
   @Delete(':id')
   @Roles(UserRole.SUPER_USER)
-  delete(@Param('id') id: string) {
-    return this.productsService.delete(id);
+  delete(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.productsService.delete(id, user);
   }
 }

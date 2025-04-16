@@ -1,24 +1,29 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, ManyToOne, Column } from 'typeorm';
+import { Product } from '../../products/product.entity';
 import { Budget } from './budget.entity';
-import { Product } from 'src/products/product.entity';
 
-@Entity('budget_items')
+@Entity()
 export class BudgetItem {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ManyToOne(() => Budget, (budget) => budget.items)
+  @Column()
+  productNameSnapshot: string;
+
+  @Column('decimal', { scale: 2, precision: 10 })
+  unitPriceSnapshot: number;
+
+  @Column('int')
+  quantity: number;
+
+  @Column('decimal', { scale: 2, precision: 10 })
+  totalPrice: number;
+
+  @ManyToOne(() => Budget, (budget) => budget.items, {
+    onDelete: 'CASCADE',
+  })
   budget: Budget;
 
   @ManyToOne(() => Product, { eager: true })
   product: Product;
-
-  @Column()
-  quantity: number;
-
-  @Column('decimal', { precision: 10, scale: 2 })
-  unitPrice: number;
-
-  @Column('decimal', { precision: 10, scale: 2 })
-  totalPrice: number;
 }

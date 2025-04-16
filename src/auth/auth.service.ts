@@ -4,6 +4,7 @@ import * as bcrypt from 'bcrypt';
 import { LoginDto } from './dto/login.dto';
 import { UsersService } from 'src/users/user.service';
 import { CreateUserDto } from 'src/users/dto/create-user.dto';
+import { UpdatePasswordDto } from 'src/users/dto/update-password.dto';
 
 @Injectable()
 export class AuthService {
@@ -36,11 +37,10 @@ export class AuthService {
     if (existing) {
       throw new UnauthorizedException('Email já cadastrado');
     }
-    const user = await this.usersService.createUser(dto);
-    return {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-    };
+    await this.usersService.createUser(dto);
+  }
+
+  async updatePassword(userId: string, dto: UpdatePasswordDto) {
+    return this.usersService.updatePassword(userId, dto);
   }
 }

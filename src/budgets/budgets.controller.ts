@@ -1,12 +1,24 @@
-import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Query,
+  UseGuards,
+  Param,
+  Patch,
+} from '@nestjs/common';
 import { BudgetsService } from './budgets.service';
 import { CreateBudgetDto } from './dto/create-budget.dto';
 import { JwtAuthGuard } from 'src/shared/guard/jwt-auth.guard';
 import { CurrentUser } from 'src/shared/decorators/current-user.decorator';
-import { User } from 'src/users/user.entity';
+import { User, UserRole } from 'src/users/user.entity';
+import { Roles, RolesGuard } from 'src/shared/guard/roles.guard';
+import { BudgetQueryDto } from './dto/budget-query.dto';
+import { Budget } from './entities/budget.entity';
 
 @Controller('budgets')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class BudgetsController {
   constructor(private readonly budgetsService: BudgetsService) {}
 
@@ -15,20 +27,73 @@ export class BudgetsController {
     @Body() createBudgetDto: CreateBudgetDto,
     @CurrentUser() user: User,
   ) {
-    return this.budgetsService.create(createBudgetDto, user);
+    const data = await this.budgetsService.create(createBudgetDto, user);
+    return this.mapperBudget(data);
   }
 
   @Get()
-  async findAll(
+  async findAll(@CurrentUser() user: User, @Query() query: BudgetQueryDto) {
+    const result = await this.budgetsService.findAll(user, query);
+
+    return { ...result, data: result.data?.map(this.mapperBudget) };
+  }
+
+  @Get(':id')
+  async findOne(@Param('id') id: string, @CurrentUser() user: User) {
+    const result = await this.budgetsService.findOne(id, user);
+
+    return this.mapperBudget(result);
+  }
+
+  @Patch(':id/approve')
+  @UseGuards(JwtAuthGuard)
+  @Roles(UserRole.SUPER_USER)
+  async approveBudget(@Param('id') id: string, @CurrentUser() user: User) {
+    await this.budgetsService.approve(id, user);
+  }
+
+  @Patch(':id/reject')
+  @UseGuards(JwtAuthGuard)
+  @Roles(UserRole.SUPER_USER)
+  async rejectBudget(
+    @Param('id') id: string,
+    @Body('reason') reason: string,
     @CurrentUser() user: User,
-    @Query('search') search?: string,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
   ) {
-    return this.budgetsService.findAll(user, {
-      search,
-      page: page ? parseInt(page, 10) : 1,
-      limit: limit ? parseInt(limit, 10) : 10,
-    });
+    await this.budgetsService.reject(id, reason, user);
+  }
+
+  private mapperBudget(data: Budget) {
+    return {
+      id: data.id,
+      customerName: data.customerName,
+      customerEmail: data.customerEmail,
+      customerPhone: data.customerPhone,
+      discountPercent: data.discountPercent,
+      requiresApproval: data.requiresApproval,
+      approved: data.approved,
+      approvedAt: data.approvedAt,
+      rejected: data.rejected,
+      rejectedAt: data.rejectedAt,
+      rejectionReason: data.rejectionReason,
+      total: data.total,
+      createdAt: data.createdAt,
+      sequentialNumber: data.sequentialNumber,
+      items: data.items.map((item) => ({
+        productNameSnapshot: item.productNameSnapshot,
+        unitPriceSnapshot: item.unitPriceSnapshot,
+        quantity: item.quantity,
+        totalPrice: item.totalPrice,
+        product: {
+          id: item.product.id,
+        },
+      })),
+      seller: {
+        id: data.seller.id,
+        name: data.seller.name,
+        email: data.seller.email,
+        phone: data.seller.phone,
+      },
+    };
   }
 }

@@ -3,6 +3,7 @@ import {
   IsEmail,
   IsNotEmpty,
   IsNumber,
+  IsString,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -23,6 +24,9 @@ export class CreateBudgetDto {
 
   @IsEmail()
   customerEmail: string;
+
+  @IsString()
+  customerPhone: string;
 
   @IsArray()
   @ValidateNested({ each: true })
