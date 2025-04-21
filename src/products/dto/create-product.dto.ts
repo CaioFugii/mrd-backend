@@ -1,4 +1,12 @@
-import { IsNotEmpty, IsNumber, IsOptional, Min } from 'class-validator';
+import {
+  ArrayMinSize,
+  IsArray,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 
 export class CreateProductDto {
   @IsNotEmpty()
@@ -10,4 +18,9 @@ export class CreateProductDto {
   @IsNumber()
   @Min(0)
   price: number;
+
+  @IsArray()
+  @IsString({ each: true })
+  @ArrayMinSize(1)
+  addonIds?: string[];
 }

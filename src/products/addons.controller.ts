@@ -10,22 +10,32 @@ import {
   Query,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
-import { CreateProductDto } from './dto/create-product.dto';
-import { UpdateProductDto } from './dto/update-product.dto';
 import { User, UserRole } from '../users/user.entity';
 import { Roles, RolesGuard } from 'src/shared/guard/roles.guard';
 import { JwtAuthGuard } from 'src/shared/guard/jwt-auth.guard';
 import { CurrentUser } from 'src/shared/decorators/current-user.decorator';
+import { CreateProductAddonDto } from './dto/create-product-addon.dto';
+import { UpdateProductAddonDto } from './dto/update-product-addon.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('products')
-export class ProductsController {
+@Controller('addons')
+export class AddonsController {
   constructor(private readonly productsService: ProductsService) {}
 
   @Post()
   @Roles(UserRole.SUPER_USER)
-  create(@Body() dto: CreateProductDto, @CurrentUser() user: User) {
-    return this.productsService.create(dto, user);
+  create(@Body() dto: CreateProductAddonDto, @CurrentUser() user: User) {
+    return this.productsService.createAddon(dto, user);
+  }
+
+  @Put(':id')
+  @Roles(UserRole.SUPER_USER)
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateProductAddonDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.productsService.updateAddon(id, dto, user);
   }
 
   @Get()
@@ -36,7 +46,7 @@ export class ProductsController {
     @Query('sortBy') sortBy?: 'name' | 'price' | 'createdAt',
     @Query('sortOrder') sortOrder?: 'asc' | 'desc',
   ) {
-    return this.productsService.findAll({
+    return this.productsService.findAddons({
       search,
       page: page ? parseInt(page, 10) : 1,
       limit: limit ? parseInt(limit, 10) : 10,
@@ -47,27 +57,12 @@ export class ProductsController {
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.productsService.findOne(id);
-  }
-
-  @Put(':id')
-  @Roles(UserRole.SUPER_USER)
-  update(
-    @Param('id') id: string,
-    @Body() dto: UpdateProductDto,
-    @CurrentUser() user: User,
-  ) {
-    return this.productsService.update(id, dto, user);
+    return this.productsService.findOneAddon(id);
   }
 
   @Delete(':id')
   @Roles(UserRole.SUPER_USER)
-  disableProduct(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.productsService.disableProduct(id, user);
-  }
-
-  @Get(':id/addons')
-  findAddonsByProduct(@Param('id') productId: string) {
-    return this.productsService.findAddonsByProduct(productId);
+  disableProductAddon(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.productsService.disableProductAddon(id, user);
   }
 }

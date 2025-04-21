@@ -8,11 +8,12 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Budget } from './entities/budget.entity';
 import { BudgetItem } from './entities/budget-item.entity';
-import { Product } from '../products/product.entity';
 import { CreateBudgetDto } from './dto/create-budget.dto';
 import { User, UserRole } from '../users/user.entity';
 import { BudgetQueryDto } from './dto/budget-query.dto';
 import { MAX_DISCOUNT } from 'src/shared/constants';
+import { Product } from 'src/products/entities/product.entity';
+import { BudgetItemAddon } from './entities/budget-item-addon.entity';
 
 @Injectable()
 export class BudgetsService {
@@ -22,6 +23,9 @@ export class BudgetsService {
 
     @InjectRepository(BudgetItem)
     private readonly budgetItemRepo: Repository<BudgetItem>,
+
+    @InjectRepository(BudgetItemAddon)
+    private readonly budgetItemAddonRepo: Repository<BudgetItemAddon>,
 
     @InjectRepository(Product)
     private readonly productRepo: Repository<Product>,
@@ -57,29 +61,50 @@ export class BudgetsService {
     const items: BudgetItem[] = [];
 
     for (const itemDto of createDto.items) {
-      const product = await this.productRepo.findOneByOrFail({
-        id: itemDto.productId,
+      const product = await this.productRepo.findOneOrFail({
+        where: { id: itemDto.productId },
+        relations: ['addons'],
       });
 
       const unitPrice = Number(product.price);
       const quantity = itemDto.quantity;
-      const totalPrice = unitPrice * quantity;
 
-      items.push(
-        this.budgetItemRepo.create({
-          product: { id: product.id },
-          productNameSnapshot: product.name,
-          unitPriceSnapshot: unitPrice,
-          quantity,
-          totalPrice,
-          budget: { id: budget.id },
-        }),
-      );
+      const item = this.budgetItemRepo.create({
+        product,
+        productNameSnapshot: product.name,
+        unitPriceSnapshot: unitPrice,
+        quantity,
+        totalPrice: 0,
+        budget,
+        addons: [],
+      });
+
+      let addonsTotal = 0;
+
+      if (itemDto.addonIds?.length) {
+        const selectedAddons = product.addons.filter((addon) =>
+          itemDto.addonIds.includes(addon.id),
+        );
+
+        item.addons = selectedAddons.map((addon) => {
+          addonsTotal += Number(addon.price);
+          return this.budgetItemAddonRepo.create({
+            nameSnapshot: addon.name,
+            priceSnapshot: Number(addon.price),
+            productAddon: addon,
+            item,
+          });
+        });
+      }
+
+      item.totalPrice = (unitPrice + addonsTotal) * quantity;
+
+      items.push(item);
     }
 
     await this.budgetItemRepo.insert(items);
 
-    const total = this.calculateTotal(items, createDto.discountPercent || 0);
+    const total = this.calculateTotal(items, budget.discountPercent || 0);
 
     await this.budgetRepo.update(budget.id, { total });
 

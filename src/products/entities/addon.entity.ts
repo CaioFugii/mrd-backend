@@ -1,24 +1,32 @@
 import {
-  Entity,
-  PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
+  Entity,
+  ManyToMany,
+  PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { Product } from './product.entity';
 
-@Entity('products')
-export class Product {
+@Entity('addons')
+export class Addon {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
   @Column()
   name: string;
 
-  @Column('text', { nullable: true })
-  description?: string;
+  @Column()
+  description: string;
 
   @Column('decimal', { precision: 10, scale: 2 })
   price: number;
+
+  @Column({ default: true })
+  enabled: boolean;
+
+  @ManyToMany(() => Product, (product) => product.addons)
+  products: Product[];
 
   @CreateDateColumn()
   createdAt: Date;

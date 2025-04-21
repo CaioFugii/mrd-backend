@@ -16,6 +16,9 @@ class BudgetItemInput {
   @IsNumber()
   @Min(1)
   quantity: number;
+
+  @IsArray()
+  addonIds?: string[];
 }
 
 export class CreateBudgetDto {
@@ -28,12 +31,12 @@ export class CreateBudgetDto {
   @IsString()
   customerPhone: string;
 
+  @IsNumber()
+  @Min(0)
+  discountPercent: number;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => BudgetItemInput)
   items: BudgetItemInput[];
-
-  @IsNumber()
-  @Min(0)
-  discountPercent: number;
 }

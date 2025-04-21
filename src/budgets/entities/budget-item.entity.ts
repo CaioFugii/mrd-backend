@@ -1,6 +1,13 @@
-import { Entity, PrimaryGeneratedColumn, ManyToOne, Column } from 'typeorm';
-import { Product } from '../../products/product.entity';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  ManyToOne,
+  Column,
+  OneToMany,
+} from 'typeorm';
 import { Budget } from './budget.entity';
+import { BudgetItemAddon } from './budget-item-addon.entity';
+import { Product } from 'src/products/entities/product.entity';
 
 @Entity()
 export class BudgetItem {
@@ -26,4 +33,10 @@ export class BudgetItem {
 
   @ManyToOne(() => Product, { eager: true })
   product: Product;
+
+  @OneToMany(() => BudgetItemAddon, (addon) => addon.item, {
+    cascade: true,
+    eager: true,
+  })
+  addons: BudgetItemAddon[];
 }
