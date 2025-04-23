@@ -15,10 +15,10 @@ export class BudgetItemAddon {
   id: string;
 
   @Column()
-  nameSnapshot: string;
+  addonNameSnapshot: string;
 
   @Column('decimal', { precision: 10, scale: 2 })
-  priceSnapshot: number;
+  addonPriceSnapshot: number;
 
   @Column('int', { default: 1 })
   quantity: number;

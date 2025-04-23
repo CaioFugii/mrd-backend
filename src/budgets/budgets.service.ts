@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { Budget } from './entities/budget.entity';
 import { BudgetItem } from './entities/budget-item.entity';
 import { CreateBudgetDto } from './dto/create-budget.dto';
@@ -21,61 +21,8 @@ export class BudgetsService {
     @InjectRepository(Budget)
     private readonly budgetRepo: Repository<Budget>,
 
-    @InjectRepository(BudgetItem)
-    private readonly budgetItemRepo: Repository<BudgetItem>,
-
-    @InjectRepository(BudgetItemAddon)
-    private readonly budgetItemAddonRepo: Repository<BudgetItemAddon>,
-
-    @InjectRepository(Product)
-    private readonly productRepo: Repository<Product>,
+    private readonly dataSource: DataSource,
   ) {}
-
-  async create(createDto: CreateBudgetDto, user: User): Promise<Budget> {
-    if (!createDto.items.length) {
-      throw new BadRequestException('Este orçamento precisa possuir itens.');
-    }
-
-    const discountPercent = createDto.discountPercent || 0;
-    const requiresApproval = discountPercent > MAX_DISCOUNT;
-    const approved = !requiresApproval;
-
-    const budget = await this.createInitialBudget(
-      createDto,
-      user,
-      requiresApproval,
-      approved,
-      discountPercent,
-    );
-
-    const products = await this.fetchProductsWithAddons(
-      createDto.items.map((i) => i.productId),
-    );
-
-    const budgetItems = this.buildBudgetItems(
-      createDto.items,
-      products,
-      budget,
-    );
-    await this.budgetItemRepo.save(budgetItems);
-
-    const allItemAddons = this.buildItemAddons(
-      createDto.items,
-      budgetItems,
-      products,
-    );
-
-    await this.budgetItemAddonRepo.save(allItemAddons);
-
-    const total = this.calculateTotal(budgetItems, discountPercent);
-    budget.total = total;
-    await this.budgetRepo.save(budget);
-
-    return this.budgetRepo.findOneOrFail({
-      where: { id: budget.id },
-      relations: ['items', 'items.addons'],
-    });
-  }
 
   async findAll(
     user: User,
@@ -85,6 +32,8 @@ export class BudgetsService {
       .createQueryBuilder('budget')
       .leftJoinAndSelect('budget.seller', 'seller')
       .leftJoinAndSelect('budget.items', 'items')
+      .leftJoinAndSelect('items.addons', 'addons')
+      .leftJoinAndSelect('addons.addon', 'addon')
       .leftJoinAndSelect('items.product', 'product');
 
     if (user.role !== UserRole.SUPER_USER) {
@@ -120,7 +69,13 @@ export class BudgetsService {
   async findOne(id: string, user: User): Promise<Budget> {
     const budget = await this.budgetRepo.findOne({
       where: { id },
-      relations: ['items', 'items.product', 'seller'],
+      relations: [
+        'items',
+        'items.product',
+        'items.addons',
+        'items.addons.addon',
+        'seller',
+      ],
     });
 
     if (!budget) {
@@ -215,14 +170,74 @@ export class BudgetsService {
     return subtotal - discount;
   }
 
-  private async createInitialBudget(
+  async create(createDto: CreateBudgetDto, user: User): Promise<Budget> {
+    if (!createDto.items.length) {
+      throw new BadRequestException('Este orçamento precisa possuir itens.');
+    }
+
+    const discountPercent = createDto.discountPercent || 0;
+    const requiresApproval = discountPercent > MAX_DISCOUNT;
+    const approved = !requiresApproval;
+
+    return this.dataSource.transaction(async (manager) => {
+      const budgetRepo = manager.getRepository(Budget);
+      const budgetItemRepo = manager.getRepository(BudgetItem);
+      const budgetItemAddonRepo = manager.getRepository(BudgetItemAddon);
+      const productRepo = manager.getRepository(Product);
+
+      const budget = await this.createInitialBudgetTransactional(
+        createDto,
+        user,
+        requiresApproval,
+        approved,
+        discountPercent,
+        budgetRepo,
+      );
+
+      const products = await this.fetchProductsWithAddonsTransactional(
+        createDto.items.map((i) => i.productId),
+        productRepo,
+      );
+
+      const budgetItems = this.buildBudgetItems(
+        createDto.items,
+        products,
+        budget,
+        budgetItemRepo,
+      );
+
+      await budgetItemRepo.save(budgetItems);
+
+      const allItemAddons = this.buildItemAddons(
+        createDto.items,
+        budgetItems,
+        products,
+        budgetItemAddonRepo,
+      );
+
+      await budgetItemRepo.save(budgetItems);
+      await budgetItemAddonRepo.save(allItemAddons);
+
+      const total = this.calculateTotal(budgetItems, discountPercent);
+      budget.total = total;
+      await budgetRepo.save(budget);
+
+      return budgetRepo.findOneOrFail({
+        where: { id: budget.id },
+        relations: ['items', 'items.addons'],
+      });
+    });
+  }
+
+  private async createInitialBudgetTransactional(
     dto: CreateBudgetDto,
     user: User,
     requiresApproval: boolean,
     approved: boolean,
     discountPercent: number,
+    budgetRepo: Repository<Budget>,
   ): Promise<Budget> {
-    const budget = this.budgetRepo.create({
+    const budget = budgetRepo.create({
       customerName: dto.customerName,
       customerEmail: dto.customerEmail,
       customerPhone: dto.customerPhone,
@@ -239,14 +254,15 @@ export class BudgetsService {
       total: 0,
     });
 
-    return this.budgetRepo.save(budget);
+    return budgetRepo.save(budget);
   }
 
-  private async fetchProductsWithAddons(
+  private async fetchProductsWithAddonsTransactional(
     productIds: string[],
+    productRepo: Repository<Product>,
   ): Promise<Map<string, Product>> {
-    const products = await this.productRepo.find({
-      where: { id: In(productIds) },
+    const products = await productRepo.find({
+      where: { id: In(productIds), enabled: true },
       relations: ['addons'],
     });
     return new Map(products.map((p) => [p.id, p]));
@@ -256,6 +272,7 @@ export class BudgetsService {
     itemsDto: CreateBudgetDto['items'],
     productMap: Map<string, Product>,
     budget: Budget,
+    budgetItemRepo: Repository<BudgetItem>,
   ): BudgetItem[] {
     return itemsDto.map((itemDto) => {
       const product = productMap.get(itemDto.productId);
@@ -267,10 +284,10 @@ export class BudgetsService {
 
       const productPrice = Number(product.price);
 
-      return this.budgetItemRepo.create({
+      return budgetItemRepo.create({
         product,
         productNameSnapshot: product.name,
-        unitPriceSnapshot: productPrice,
+        productPriceSnapshot: productPrice,
         totalPrice: 0,
         budget,
         addons: [],
@@ -282,6 +299,7 @@ export class BudgetsService {
     itemsDto: CreateBudgetDto['items'],
     budgetItems: BudgetItem[],
     productMap: Map<string, Product>,
+    budgetItemAddonRepo: Repository<BudgetItemAddon>,
   ): BudgetItemAddon[] {
     const allItemAddons: BudgetItemAddon[] = [];
 
@@ -307,9 +325,9 @@ export class BudgetsService {
         const addonPrice = Number(addon.price);
         const addonTotal = addonPrice * quantity;
 
-        const budgetAddon = this.budgetItemAddonRepo.create({
-          nameSnapshot: addon.name,
-          priceSnapshot: addonPrice,
+        const budgetAddon = budgetItemAddonRepo.create({
+          addonNameSnapshot: addon.name,
+          addonPriceSnapshot: addonPrice,
           addon,
           quantity,
           totalPrice: addonTotal,

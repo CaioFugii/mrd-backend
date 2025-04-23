@@ -18,7 +18,7 @@ export class BudgetItem {
   productNameSnapshot: string;
 
   @Column('decimal', { scale: 2, precision: 10 })
-  unitPriceSnapshot: number;
+  productPriceSnapshot: number;
 
   @Column('decimal', { scale: 2, precision: 10 })
   totalPrice: number;

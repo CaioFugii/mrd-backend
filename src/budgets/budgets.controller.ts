@@ -28,8 +28,7 @@ export class BudgetsController {
     @CurrentUser() user: User,
   ) {
     const data = await this.budgetsService.create(createBudgetDto, user);
-    // return this.mapperBudget(data);
-    return data;
+    return this.mapperBudget(data);
   }
 
   @Get()
@@ -66,6 +65,7 @@ export class BudgetsController {
 
   private mapperBudget(data: Budget) {
     return {
+      sequentialNumber: data.sequentialNumber,
       id: data.id,
       customerName: data.customerName,
       customerEmail: data.customerEmail,
@@ -79,17 +79,22 @@ export class BudgetsController {
       rejectionReason: data.rejectionReason,
       total: data.total,
       createdAt: data.createdAt,
-      sequentialNumber: data.sequentialNumber,
-      items: data.items.map((item) => ({
+      items: data.items?.map((item) => ({
+        id: item.id,
         productNameSnapshot: item.productNameSnapshot,
-        unitPriceSnapshot: item.unitPriceSnapshot,
+        productPriceSnapshot: item.productPriceSnapshot,
         totalPrice: item.totalPrice,
-        product: {
-          id: item.product.id,
-        },
+        productId: item.product.id,
+        addons: item.addons?.map((addon) => ({
+          id: addon.id,
+          addonNameSnapshot: addon.addonNameSnapshot,
+          addonPriceSnapshot: addon.addonPriceSnapshot,
+          quantity: addon.quantity,
+          totalPrice: addon.totalPrice,
+          addonId: addon.addon.id,
+        })),
       })),
       seller: {
-        id: data.seller.id,
         name: data.seller.name,
         email: data.seller.email,
         phone: data.seller.phone,
