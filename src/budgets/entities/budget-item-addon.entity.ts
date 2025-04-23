@@ -1,6 +1,13 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  CreateDateColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 import { BudgetItem } from './budget-item.entity';
-import { Addon } from '../../products/entities/addon.entity';
+import { Addon } from 'src/products/entities/addon.entity';
 
 @Entity('budget_item_addons')
 export class BudgetItemAddon {
@@ -13,11 +20,23 @@ export class BudgetItemAddon {
   @Column('decimal', { precision: 10, scale: 2 })
   priceSnapshot: number;
 
+  @Column('int', { default: 1 })
+  quantity: number;
+
+  @Column('decimal', { precision: 10, scale: 2 })
+  totalPrice: number;
+
   @ManyToOne(() => BudgetItem, (item) => item.addons, {
     onDelete: 'CASCADE',
   })
   item: BudgetItem;
 
   @ManyToOne(() => Addon, { eager: true })
-  productAddon: Addon;
+  addon: Addon;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
 }

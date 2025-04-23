@@ -20,9 +20,6 @@ export class BudgetItem {
   @Column('decimal', { scale: 2, precision: 10 })
   unitPriceSnapshot: number;
 
-  @Column('int')
-  quantity: number;
-
   @Column('decimal', { scale: 2, precision: 10 })
   totalPrice: number;
 

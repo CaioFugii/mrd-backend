@@ -28,7 +28,8 @@ export class BudgetsController {
     @CurrentUser() user: User,
   ) {
     const data = await this.budgetsService.create(createBudgetDto, user);
-    return this.mapperBudget(data);
+    // return this.mapperBudget(data);
+    return data;
   }
 
   @Get()
@@ -82,7 +83,6 @@ export class BudgetsController {
       items: data.items.map((item) => ({
         productNameSnapshot: item.productNameSnapshot,
         unitPriceSnapshot: item.unitPriceSnapshot,
-        quantity: item.quantity,
         totalPrice: item.totalPrice,
         product: {
           id: item.product.id,

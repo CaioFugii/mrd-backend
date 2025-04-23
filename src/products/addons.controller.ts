@@ -38,6 +38,12 @@ export class AddonsController {
     return this.productsService.updateAddon(id, dto, user);
   }
 
+  @Delete(':id')
+  @Roles(UserRole.SUPER_USER)
+  disableProductAddon(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.productsService.disableProductAddon(id, user);
+  }
+
   @Get()
   findAll(
     @Query('search') search?: string,
@@ -58,11 +64,5 @@ export class AddonsController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.productsService.findOneAddon(id);
-  }
-
-  @Delete(':id')
-  @Roles(UserRole.SUPER_USER)
-  disableProductAddon(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.productsService.disableProductAddon(id, user);
   }
 }

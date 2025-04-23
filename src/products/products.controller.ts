@@ -28,6 +28,22 @@ export class ProductsController {
     return this.productsService.create(dto, user);
   }
 
+  @Put(':id')
+  @Roles(UserRole.SUPER_USER)
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateProductDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.productsService.update(id, dto, user);
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.SUPER_USER)
+  disableProduct(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.productsService.disableProduct(id, user);
+  }
+
   @Get()
   findAll(
     @Query('search') search?: string,
@@ -48,22 +64,6 @@ export class ProductsController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.productsService.findOne(id);
-  }
-
-  @Put(':id')
-  @Roles(UserRole.SUPER_USER)
-  update(
-    @Param('id') id: string,
-    @Body() dto: UpdateProductDto,
-    @CurrentUser() user: User,
-  ) {
-    return this.productsService.update(id, dto, user);
-  }
-
-  @Delete(':id')
-  @Roles(UserRole.SUPER_USER)
-  disableProduct(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.productsService.disableProduct(id, user);
   }
 
   @Get(':id/addons')

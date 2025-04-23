@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Budget } from './entities/budget.entity';
 import { BudgetItem } from './entities/budget-item.entity';
 import { CreateBudgetDto } from './dto/create-budget.dto';
@@ -36,91 +36,45 @@ export class BudgetsService {
       throw new BadRequestException('Este orçamento precisa possuir itens.');
     }
 
-    const budgetInsertResult = await this.budgetRepo.insert({
-      customerName: createDto.customerName,
-      customerEmail: createDto.customerEmail,
-      customerPhone: createDto.customerPhone,
-      requiresApproval: (createDto.discountPercent || 0) > MAX_DISCOUNT,
-      discountPercent: createDto.discountPercent || 0,
-      approved: (createDto.discountPercent || 0) <= MAX_DISCOUNT,
-      approvedAt:
-        (createDto.discountPercent || 0) <= MAX_DISCOUNT ? new Date() : null,
-      seller: { id: user.id },
-      approvedBy: null,
-      rejectedBy: null,
-      rejectedAt: null,
-      rejectionReason: null,
-      rejected: false,
-      total: 0,
-    });
+    const discountPercent = createDto.discountPercent || 0;
+    const requiresApproval = discountPercent > MAX_DISCOUNT;
+    const approved = !requiresApproval;
 
-    const budgetId = budgetInsertResult.identifiers[0].id;
+    const budget = await this.createInitialBudget(
+      createDto,
+      user,
+      requiresApproval,
+      approved,
+      discountPercent,
+    );
 
-    const budget = await this.budgetRepo.findOneByOrFail({ id: budgetId });
+    const products = await this.fetchProductsWithAddons(
+      createDto.items.map((i) => i.productId),
+    );
 
-    const items: BudgetItem[] = [];
+    const budgetItems = this.buildBudgetItems(
+      createDto.items,
+      products,
+      budget,
+    );
+    await this.budgetItemRepo.save(budgetItems);
 
-    for (const itemDto of createDto.items) {
-      const product = await this.productRepo.findOneOrFail({
-        where: { id: itemDto.productId },
-        relations: ['addons'],
-      });
+    const allItemAddons = this.buildItemAddons(
+      createDto.items,
+      budgetItems,
+      products,
+    );
 
-      const unitPrice = Number(product.price);
-      const quantity = itemDto.quantity;
+    await this.budgetItemAddonRepo.save(allItemAddons);
 
-      const item = this.budgetItemRepo.create({
-        product,
-        productNameSnapshot: product.name,
-        unitPriceSnapshot: unitPrice,
-        quantity,
-        totalPrice: 0,
-        budget,
-        addons: [],
-      });
-
-      let addonsTotal = 0;
-
-      if (itemDto.addonIds?.length) {
-        const selectedAddons = product.addons.filter((addon) =>
-          itemDto.addonIds.includes(addon.id),
-        );
-
-        item.addons = selectedAddons.map((addon) => {
-          addonsTotal += Number(addon.price);
-          return this.budgetItemAddonRepo.create({
-            nameSnapshot: addon.name,
-            priceSnapshot: Number(addon.price),
-            productAddon: addon,
-            item,
-          });
-        });
-      }
-
-      item.totalPrice = (unitPrice + addonsTotal) * quantity;
-
-      items.push(item);
-    }
-
-    await this.budgetItemRepo.insert(items);
-
-    const total = this.calculateTotal(items, budget.discountPercent || 0);
-
-    await this.budgetRepo.update(budget.id, { total });
+    const total = this.calculateTotal(budgetItems, discountPercent);
+    budget.total = total;
+    await this.budgetRepo.save(budget);
 
     return this.budgetRepo.findOneOrFail({
       where: { id: budget.id },
-      relations: ['items'],
+      relations: ['items', 'items.addons'],
     });
-  }
-
-  private calculateTotal(items: BudgetItem[], discountPercent: number) {
-    const subtotal = items.reduce(
-      (sum, item) => sum + Number(item.totalPrice),
-      0,
-    );
-    const discount = subtotal * (discountPercent / 100);
-    return subtotal - discount;
   }
 
   async findAll(
@@ -250,5 +204,125 @@ export class BudgetsService {
     budget.rejectionReason = reason;
 
     await this.budgetRepo.save(budget);
+  }
+
+  private calculateTotal(items: BudgetItem[], discountPercent: number) {
+    const subtotal = items.reduce(
+      (sum, item) => sum + Number(item.totalPrice),
+      0,
+    );
+    const discount = subtotal * (discountPercent / 100);
+    return subtotal - discount;
+  }
+
+  private async createInitialBudget(
+    dto: CreateBudgetDto,
+    user: User,
+    requiresApproval: boolean,
+    approved: boolean,
+    discountPercent: number,
+  ): Promise<Budget> {
+    const budget = this.budgetRepo.create({
+      customerName: dto.customerName,
+      customerEmail: dto.customerEmail,
+      customerPhone: dto.customerPhone,
+      requiresApproval,
+      discountPercent,
+      approved,
+      approvedAt: approved ? new Date() : null,
+      seller: { id: user.id },
+      approvedBy: null,
+      rejectedBy: null,
+      rejectedAt: null,
+      rejectionReason: null,
+      rejected: false,
+      total: 0,
+    });
+
+    return this.budgetRepo.save(budget);
+  }
+
+  private async fetchProductsWithAddons(
+    productIds: string[],
+  ): Promise<Map<string, Product>> {
+    const products = await this.productRepo.find({
+      where: { id: In(productIds) },
+      relations: ['addons'],
+    });
+    return new Map(products.map((p) => [p.id, p]));
+  }
+
+  private buildBudgetItems(
+    itemsDto: CreateBudgetDto['items'],
+    productMap: Map<string, Product>,
+    budget: Budget,
+  ): BudgetItem[] {
+    return itemsDto.map((itemDto) => {
+      const product = productMap.get(itemDto.productId);
+      if (!product) {
+        throw new BadRequestException(
+          `Produto com ID ${itemDto.productId} não encontrado.`,
+        );
+      }
+
+      const productPrice = Number(product.price);
+
+      return this.budgetItemRepo.create({
+        product,
+        productNameSnapshot: product.name,
+        unitPriceSnapshot: productPrice,
+        totalPrice: 0,
+        budget,
+        addons: [],
+      });
+    });
+  }
+
+  private buildItemAddons(
+    itemsDto: CreateBudgetDto['items'],
+    budgetItems: BudgetItem[],
+    productMap: Map<string, Product>,
+  ): BudgetItemAddon[] {
+    const allItemAddons: BudgetItemAddon[] = [];
+
+    for (let i = 0; i < itemsDto.length; i++) {
+      const itemDto = itemsDto[i];
+      const item = budgetItems[i];
+      const product = productMap.get(itemDto.productId)!;
+
+      const enabledAddons = new Map(
+        product.addons.filter((a) => a.enabled).map((a) => [a.id, a]),
+      );
+      let itemTotal = Number(product.price);
+
+      for (const addonInput of itemDto.addons || []) {
+        const addon = enabledAddons.get(addonInput.id);
+        if (!addon) {
+          throw new BadRequestException(
+            `Produto adicional com ID ${addonInput.id} inválido ou desativado.`,
+          );
+        }
+
+        const quantity = addonInput.quantity || 1;
+        const addonPrice = Number(addon.price);
+        const addonTotal = addonPrice * quantity;
+
+        const budgetAddon = this.budgetItemAddonRepo.create({
+          nameSnapshot: addon.name,
+          priceSnapshot: addonPrice,
+          addon,
+          quantity,
+          totalPrice: addonTotal,
+          item,
+        });
+
+        itemTotal += addonTotal;
+        allItemAddons.push(budgetAddon);
+      }
+
+      item.totalPrice = itemTotal;
+    }
+
+    return allItemAddons;
   }
 }

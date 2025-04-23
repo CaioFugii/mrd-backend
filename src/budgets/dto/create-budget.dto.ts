@@ -4,21 +4,31 @@ import {
   IsNotEmpty,
   IsNumber,
   IsString,
+  IsUUID,
   Min,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
-class BudgetItemInput {
+class AddonsItemDto {
   @IsNotEmpty()
-  productId: string;
+  @IsUUID()
+  id: string;
 
   @IsNumber()
   @Min(1)
   quantity: number;
+}
+
+class BudgetItemInput {
+  @IsNotEmpty()
+  @IsUUID()
+  productId: string;
 
   @IsArray()
-  addonIds?: string[];
+  @ValidateNested({ each: true })
+  @Type(() => AddonsItemDto)
+  addons?: AddonsItemDto[];
 }
 
 export class CreateBudgetDto {
