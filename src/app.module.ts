@@ -19,8 +19,6 @@ import { BudgetsModule } from './budgets/budgets.module';
         type: 'postgres',
         url: config.get('DATABASE_URL'),
         ssl: false,
-        autoLoadEntities: true,
-        synchronize: true, // cuidado: só em dev!
       }),
       inject: [ConfigService],
     }),
