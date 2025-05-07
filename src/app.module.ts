@@ -18,7 +18,7 @@ import { BudgetsModule } from './budgets/budgets.module';
       useFactory: (config: ConfigService) => ({
         type: 'postgres',
         url: config.get('DATABASE_URL'),
-        ssl: true,
+        ssl: false,
         autoLoadEntities: true,
         synchronize: true, // cuidado: só em dev!
       }),
