@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User, UserRole } from './entities/user.entity';
 import { Repository } from 'typeorm';
@@ -31,10 +35,20 @@ export class UsersService {
     return this.userRepo.save(user);
   }
 
+  async update(id: string, dto: CreateUserDto): Promise<User> {
+    const user = await this.findById(id);
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado');
+    }
+    user.name = dto.name;
+    user.email = dto.email;
+    user.phone = dto.phone;
+    return this.userRepo.save(user);
+  }
   async resetPassword(userId: string): Promise<void> {
     const user = await this.findById(userId);
     if (!user) {
-      throw new BadRequestException('Usuário não encontrado');
+      throw new NotFoundException('Usuário não encontrado');
     }
     const hash = await bcrypt.hash('123456', 10);
     user.password = hash;
@@ -44,7 +58,7 @@ export class UsersService {
   async updatePassword(userId: string, dto: UpdatePasswordDto): Promise<void> {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) {
-      throw new BadRequestException('Usuário não encontrado');
+      throw new NotFoundException('Usuário não encontrado');
     }
 
     const isMatch = await bcrypt.compare(dto.currentPassword, user.password);
@@ -61,7 +75,7 @@ export class UsersService {
   async disableSeller(userId: string): Promise<void> {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) {
-      throw new BadRequestException('Usuário não encontrado');
+      throw new NotFoundException('Usuário não encontrado');
     }
 
     await this.userRepo.save({ ...user, enabled: false });
@@ -70,7 +84,7 @@ export class UsersService {
   async enableSeller(userId: string): Promise<void> {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) {
-      throw new BadRequestException('Usuário não encontrado');
+      throw new NotFoundException('Usuário não encontrado');
     }
 
     await this.userRepo.save({ ...user, enabled: true });

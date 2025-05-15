@@ -36,6 +36,13 @@ export class AuthController {
     return this.authService.register(dto);
   }
 
+  @Put('update-seller/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_USER)
+  updateSeller(@Param('id') id: string, @Body() dto: CreateUserDto) {
+    return this.usersService.update(id, dto);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Put('update-password')
   updatePassword(@CurrentUser() user: User, @Body() dto: UpdatePasswordDto) {
