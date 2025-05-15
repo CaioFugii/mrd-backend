@@ -30,6 +30,9 @@ export class User {
   @Column()
   password: string;
 
+  @Column({ default: true })
+  enabled: boolean;
+
   @Column({
     type: 'enum',
     enum: UserRole,

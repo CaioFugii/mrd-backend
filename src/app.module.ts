@@ -20,7 +20,7 @@ import { BudgetsModule } from './budgets/budgets.module';
         url: config.get('DATABASE_URL'),
         ssl: { rejectUnauthorized: false },
         autoLoadEntities: true,
-        // synchronize: true, // cuidado: só em dev!
+        synchronize: true, // cuidado: só em dev!
       }),
       inject: [ConfigService],
     }),

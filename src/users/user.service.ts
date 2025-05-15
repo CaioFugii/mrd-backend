@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { User, UserRole } from './user.entity';
+import { User, UserRole } from './entities/user.entity';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -31,6 +31,16 @@ export class UsersService {
     return this.userRepo.save(user);
   }
 
+  async resetPassword(userId: string): Promise<void> {
+    const user = await this.findById(userId);
+    if (!user) {
+      throw new BadRequestException('Usuário não encontrado');
+    }
+    const hash = await bcrypt.hash('123456', 10);
+    user.password = hash;
+    await this.userRepo.save(user);
+  }
+
   async updatePassword(userId: string, dto: UpdatePasswordDto): Promise<void> {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) {
@@ -46,5 +56,23 @@ export class UsersService {
     const hashed = await bcrypt.hash(dto.newPassword, 10);
     user.password = hashed;
     await this.userRepo.save(user);
+  }
+
+  async disableSeller(userId: string): Promise<void> {
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new BadRequestException('Usuário não encontrado');
+    }
+
+    await this.userRepo.save({ ...user, enabled: false });
+  }
+
+  async enableSeller(userId: string): Promise<void> {
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new BadRequestException('Usuário não encontrado');
+    }
+
+    await this.userRepo.save({ ...user, enabled: true });
   }
 }

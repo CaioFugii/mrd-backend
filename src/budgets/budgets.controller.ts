@@ -12,7 +12,7 @@ import { BudgetsService } from './budgets.service';
 import { CreateBudgetDto } from './dto/create-budget.dto';
 import { JwtAuthGuard } from 'src/shared/guard/jwt-auth.guard';
 import { CurrentUser } from 'src/shared/decorators/current-user.decorator';
-import { User, UserRole } from 'src/users/user.entity';
+import { User, UserRole } from 'src/users/entities/user.entity';
 import { Roles, RolesGuard } from 'src/shared/guard/roles.guard';
 import { BudgetQueryDto } from './dto/budget-query.dto';
 import { Budget } from './entities/budget.entity';

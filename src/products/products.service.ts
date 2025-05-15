@@ -7,7 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { User, UserRole } from 'src/users/user.entity';
+import { User, UserRole } from 'src/users/entities/user.entity';
 import { Product } from './entities/product.entity';
 import { Addon } from './entities/addon.entity';
 import { CreateProductAddonDto } from './dto/create-product-addon.dto';

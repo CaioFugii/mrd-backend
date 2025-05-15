@@ -9,7 +9,7 @@ import { DataSource, In, Repository } from 'typeorm';
 import { Budget } from './entities/budget.entity';
 import { BudgetItem } from './entities/budget-item.entity';
 import { CreateBudgetDto } from './dto/create-budget.dto';
-import { User, UserRole } from '../users/user.entity';
+import { User, UserRole } from '../users/entities/user.entity';
 import { BudgetQueryDto } from './dto/budget-query.dto';
 import { MAX_DISCOUNT } from 'src/shared/constants';
 import { Product } from 'src/products/entities/product.entity';

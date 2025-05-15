@@ -7,7 +7,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { User } from '../../users/user.entity';
+import { User } from '../../users/entities/user.entity';
 import { BudgetItem } from './budget-item.entity';
 
 @Entity('budgets')

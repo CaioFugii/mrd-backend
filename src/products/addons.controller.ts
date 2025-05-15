@@ -10,7 +10,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
-import { User, UserRole } from '../users/user.entity';
+import { User, UserRole } from '../users/entities/user.entity';
 import { Roles, RolesGuard } from 'src/shared/guard/roles.guard';
 import { JwtAuthGuard } from 'src/shared/guard/jwt-auth.guard';
 import { CurrentUser } from 'src/shared/decorators/current-user.decorator';
