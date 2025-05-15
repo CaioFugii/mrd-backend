@@ -41,7 +41,6 @@ export class UsersService {
       throw new NotFoundException('Usuário não encontrado');
     }
     user.name = dto.name;
-    user.email = dto.email;
     user.phone = dto.phone;
     return this.userRepo.save(user);
   }
