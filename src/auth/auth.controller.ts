@@ -56,7 +56,7 @@ export class AuthController {
     return this.usersService.enableSeller(id);
   }
 
-  @Put('reset-password')
+  @Put('reset-password/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_USER)
   resetPassword(@Param('id') id: string) {
