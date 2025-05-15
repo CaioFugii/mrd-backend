@@ -75,4 +75,11 @@ export class UsersService {
 
     await this.userRepo.save({ ...user, enabled: true });
   }
+
+  async listSellers(): Promise<User[]> {
+    return this.userRepo.find({
+      where: { role: UserRole.VENDEDOR },
+      select: ['id', 'name', 'email', 'phone', 'enabled'],
+    });
+  }
 }

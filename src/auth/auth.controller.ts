@@ -1,4 +1,12 @@
-import { Body, Controller, Param, Post, Put, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Put,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { CreateUserDto } from '../users/dto/create-user.dto';
@@ -53,5 +61,12 @@ export class AuthController {
   @Roles(UserRole.SUPER_USER)
   resetPassword(@Param('id') id: string) {
     return this.usersService.resetPassword(id);
+  }
+
+  @Get('sellers')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_USER)
+  findAllSellers() {
+    return this.usersService.listSellers();
   }
 }
