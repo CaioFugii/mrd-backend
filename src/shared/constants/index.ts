@@ -1,1 +1,1 @@
-export const MAX_DISCOUNT = 20;
+export const MAX_DISCOUNT = 5;
