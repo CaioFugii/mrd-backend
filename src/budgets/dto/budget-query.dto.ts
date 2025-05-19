@@ -5,12 +5,7 @@ import { Type } from 'class-transformer';
 export class BudgetQueryDto {
   @IsOptional()
   @IsString()
-  customerName?: string;
-
-  @IsOptional()
-  @Type(() => Boolean)
-  @IsBoolean()
-  onlyApproved?: boolean;
+  search?: string;
 
   @IsOptional()
   @Type(() => Boolean)

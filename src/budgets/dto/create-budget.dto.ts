@@ -3,6 +3,7 @@ import {
   IsEmail,
   IsNotEmpty,
   IsNumber,
+  IsOptional,
   IsString,
   IsUUID,
   Min,
@@ -36,13 +37,16 @@ export class CreateBudgetDto {
   customerName: string;
 
   @IsEmail()
+  @IsOptional()
   customerEmail: string;
 
   @IsString()
+  @IsNotEmpty()
   customerPhone: string;
 
   @IsNumber()
   @Min(0)
+  @IsOptional()
   discountPercent: number;
 
   @IsArray()

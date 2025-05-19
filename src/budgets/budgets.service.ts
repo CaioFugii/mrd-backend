@@ -40,14 +40,21 @@ export class BudgetsService {
       qb.where('seller.id = :sellerId', { sellerId: user.id });
     }
 
-    if (query.customerName) {
-      qb.andWhere('LOWER(budget.customerName) LIKE :customerName', {
-        customerName: `%${query.customerName.toLowerCase()}%`,
-      });
-    }
-
-    if (query.onlyApproved) {
-      qb.andWhere('budget.approved = true');
+    if (query.search) {
+      const isNumeric = !isNaN(Number(query.search));
+      if (isNumeric) {
+        qb.andWhere(
+          'budget.sequentialNumber = :searchNumber OR LOWER(budget.customerName) LIKE :searchText',
+          {
+            searchNumber: Number(query.search),
+            searchText: `%${String(query.search).toLowerCase()}%`,
+          },
+        );
+      } else {
+        qb.andWhere('LOWER(budget.customerName) LIKE :searchText', {
+          searchText: `%${String(query.search).toLowerCase()}%`,
+        });
+      }
     }
 
     if (query.onlyPendingApproval) {
