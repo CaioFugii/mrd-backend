@@ -21,7 +21,7 @@ export class Budget {
   @Column()
   customerName: string;
 
-  @Column()
+  @Column({ nullable: true })
   customerEmail: string;
 
   @Column()

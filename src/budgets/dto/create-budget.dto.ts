@@ -34,6 +34,7 @@ class BudgetItemInput {
 
 export class CreateBudgetDto {
   @IsNotEmpty()
+  @IsString()
   customerName: string;
 
   @IsEmail()
