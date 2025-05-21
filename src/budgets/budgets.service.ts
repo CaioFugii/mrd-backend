@@ -63,7 +63,7 @@ export class BudgetsService {
     }
 
     if (query.onlySold) {
-      qb.andWhere(`budget.status = "${BudgetStatus.VENDIDO}"`);
+      qb.andWhere(`budget.status = '${BudgetStatus.VENDIDO}'`);
     }
 
     qb.orderBy('budget.createdAt', query.orderBy || 'DESC');
