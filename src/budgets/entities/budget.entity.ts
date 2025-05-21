@@ -35,6 +35,9 @@ export class Budget {
   @Column({ default: 0 })
   discountPercent: number;
 
+  @Column({ default: 0 })
+  commissionPercent: number;
+
   @Column({ default: false })
   requiresApproval: boolean;
 

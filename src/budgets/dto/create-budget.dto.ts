@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -50,6 +51,12 @@ export class CreateBudgetDto {
   @Min(0)
   @IsOptional()
   discountPercent: number;
+
+  @IsNumber()
+  @Min(0)
+  @Max(3)
+  @IsOptional()
+  commissionPercent: number;
 
   @IsBoolean()
   @IsNotEmpty()

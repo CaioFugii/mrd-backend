@@ -12,7 +12,7 @@ import { BudgetItem } from './entities/budget-item.entity';
 import { CreateBudgetDto } from './dto/create-budget.dto';
 import { User, UserRole } from '../users/entities/user.entity';
 import { BudgetQueryDto } from './dto/budget-query.dto';
-import { MAX_DISCOUNT } from 'src/shared/constants';
+import { MAX_COMMISSION, MAX_DISCOUNT } from 'src/shared/constants';
 import { Product } from 'src/products/entities/product.entity';
 import { BudgetItemAddon } from './entities/budget-item-addon.entity';
 
@@ -205,7 +205,7 @@ export class BudgetsService {
     await this.budgetRepo.save(budget);
   }
 
-  private calculateTotal(items: BudgetItem[], discountPercent: number) {
+  private calculateTotalItems(items: BudgetItem[], discountPercent: number) {
     const subtotal = items.reduce(
       (sum, item) => sum + Number(item.totalPrice),
       0,
@@ -226,9 +226,21 @@ export class BudgetsService {
     return total;
   }
 
+  private calculateCommissionPercent(total: number, commissionPercent: number) {
+    const totalWithCommission = (total * commissionPercent) / 100;
+
+    return total + totalWithCommission;
+  }
+
   async create(createDto: CreateBudgetDto, user: User): Promise<Budget> {
     if (!createDto.items.length) {
       throw new BadRequestException('Este orçamento precisa possuir itens.');
+    }
+
+    if (createDto.commissionPercent > MAX_COMMISSION) {
+      throw new BadRequestException(
+        'Comissão do vendedor acima do valor permitido',
+      );
     }
 
     const discountPercent = createDto.discountPercent || 0;
@@ -274,10 +286,18 @@ export class BudgetsService {
       await budgetItemRepo.save(budgetItems);
       await budgetItemAddonRepo.save(allItemAddons);
 
-      const total = this.calculateTotal(budgetItems, discountPercent);
+      const totalWithDiscount = this.calculateTotalItems(
+        budgetItems,
+        discountPercent,
+      );
+
+      const totalWithCommission = this.calculateCommissionPercent(
+        totalWithDiscount,
+        budget.commissionPercent,
+      );
 
       budget.total = this.calculateIssueInvoicePercent(
-        total,
+        totalWithCommission,
         budget.issueInvoice,
       );
 
@@ -365,7 +385,7 @@ export class BudgetsService {
       await budgetItemRepo.save(budgetItems);
       await budgetItemAddonRepo.save(allItemAddons);
 
-      const total = this.calculateTotal(budgetItems, discountPercent);
+      const total = this.calculateTotalItems(budgetItems, discountPercent);
       budgetToUpdate.total = total;
 
       await budgetRepo.save(budgetToUpdate);
@@ -396,6 +416,7 @@ export class BudgetsService {
       issueInvoice: dto.issueInvoice,
       requiresApproval,
       discountPercent,
+      commissionPercent: dto.commissionPercent,
       approved,
       status,
       approvedAt: approved ? new Date() : null,
