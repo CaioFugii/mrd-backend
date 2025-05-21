@@ -89,6 +89,7 @@ export class BudgetsController {
       customerEmail: data.customerEmail,
       customerPhone: data.customerPhone,
       discountPercent: data.discountPercent,
+      commissionPercent: data.commissionPercent,
       requiresApproval: data.requiresApproval,
       issueInvoice: data.issueInvoice,
       approved: data.approved,
