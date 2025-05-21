@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
-import { Budget } from './entities/budget.entity';
+import { Budget, BudgetStatus } from './entities/budget.entity';
 import { BudgetItem } from './entities/budget-item.entity';
 import { CreateBudgetDto } from './dto/create-budget.dto';
 import { User, UserRole } from '../users/entities/user.entity';
@@ -122,6 +122,8 @@ export class BudgetsService {
       throw new BadRequestException('Este orçamento já foi aprovado.');
     }
 
+    budget.status = BudgetStatus.APROVADO;
+    budget.requiresApproval = false;
     budget.approved = true;
     budget.approvedAt = new Date();
     budget.approvedBy = user;
@@ -161,10 +163,40 @@ export class BudgetsService {
       throw new BadRequestException('Orçamento já foi rejeitado.');
     }
 
+    budget.status = BudgetStatus.REJEITADO;
+    budget.requiresApproval = true;
     budget.rejected = true;
     budget.rejectedAt = new Date();
     budget.rejectedBy = user;
     budget.rejectionReason = reason;
+
+    await this.budgetRepo.save(budget);
+  }
+
+  async sellBudget(id: string, user: User): Promise<void> {
+    const budget = await this.budgetRepo.findOne({
+      where: { id },
+    });
+
+    if (user.id !== budget.seller.id && user.role !== UserRole.SUPER_USER) {
+      throw new ForbiddenException(
+        'Você não tem permissão para editar o status deste orçamento.',
+      );
+    }
+
+    if (!budget) {
+      throw new NotFoundException('Orçamento não encontrado.');
+    }
+
+    if (budget.requiresApproval) {
+      throw new BadRequestException('Este orçamento requer aprovação.');
+    }
+
+    if (budget.rejected) {
+      throw new BadRequestException('Este orçamento está rejeitado.');
+    }
+
+    budget.status = BudgetStatus.VENDIDO;
 
     await this.budgetRepo.save(budget);
   }
@@ -183,6 +215,7 @@ export class BudgetsService {
       const issueInvoicePercent =
         Number(process.env.ISSUE_INVOICE_PERCENT) ?? 0;
       const issueInvoiceValue = (total * issueInvoicePercent) / 100;
+
       return total + issueInvoiceValue;
     }
 
@@ -348,6 +381,10 @@ export class BudgetsService {
     discountPercent: number,
     budgetRepo: Repository<Budget>,
   ): Promise<Budget> {
+    const status = requiresApproval
+      ? BudgetStatus.PENDENTE
+      : BudgetStatus.APROVADO;
+
     const budget = budgetRepo.create({
       customerName: dto.customerName,
       customerEmail: dto.customerEmail,
@@ -356,6 +393,7 @@ export class BudgetsService {
       requiresApproval,
       discountPercent,
       approved,
+      status,
       approvedAt: approved ? new Date() : null,
       seller: { id: user.id },
       approvedBy: null,

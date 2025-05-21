@@ -74,11 +74,18 @@ export class BudgetsController {
     await this.budgetsService.reject(id, reason, user);
   }
 
+  @Patch(':id/sell')
+  @UseGuards(JwtAuthGuard)
+  async sellBudget(@Param('id') id: string, @CurrentUser() user: User) {
+    await this.budgetsService.sellBudget(id, user);
+  }
+
   private mapperBudget(data: Budget) {
     return {
       sequentialNumber: data.sequentialNumber,
       id: data.id,
       customerName: data.customerName,
+      status: data.status,
       customerEmail: data.customerEmail,
       customerPhone: data.customerPhone,
       discountPercent: data.discountPercent,

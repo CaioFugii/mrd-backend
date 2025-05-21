@@ -10,6 +10,14 @@ import {
 import { User } from '../../users/entities/user.entity';
 import { BudgetItem } from './budget-item.entity';
 
+export enum BudgetStatus {
+  APROVADO = 'APROVADO',
+  REJEITADO = 'REJEITADO',
+  CANCELADO = 'CANCELADO',
+  VENDIDO = 'VENDIDO',
+  PENDENTE = 'PENDENTE',
+}
+
 @Entity('budgets')
 export class Budget {
   @PrimaryGeneratedColumn('uuid')
@@ -56,6 +64,13 @@ export class Budget {
 
   @Column('decimal', { precision: 10, scale: 2 })
   total: number;
+
+  @Column({
+    type: 'enum',
+    enum: BudgetStatus,
+    default: BudgetStatus.PENDENTE,
+  })
+  status: BudgetStatus;
 
   @CreateDateColumn()
   createdAt: Date;
