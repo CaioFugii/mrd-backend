@@ -15,9 +15,6 @@ export class Budget {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ManyToOne(() => User, (user) => user.budgets, { eager: true })
-  seller: User;
-
   @Column()
   customerName: string;
 
@@ -32,6 +29,9 @@ export class Budget {
 
   @Column({ default: false })
   requiresApproval: boolean;
+
+  @Column({ default: true })
+  issueInvoice: boolean;
 
   @Column({ default: false })
   approved: boolean;
@@ -75,4 +75,7 @@ export class Budget {
     eager: true,
   })
   items: BudgetItem[];
+
+  @ManyToOne(() => User, (user) => user.budgets, { eager: true })
+  seller: User;
 }

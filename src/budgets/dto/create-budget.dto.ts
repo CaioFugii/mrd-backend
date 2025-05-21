@@ -1,5 +1,6 @@
 import {
   IsArray,
+  IsBoolean,
   IsEmail,
   IsNotEmpty,
   IsNumber,
@@ -49,6 +50,10 @@ export class CreateBudgetDto {
   @Min(0)
   @IsOptional()
   discountPercent: number;
+
+  @IsBoolean()
+  @IsNotEmpty()
+  issueInvoice: boolean;
 
   @IsArray()
   @ValidateNested({ each: true })

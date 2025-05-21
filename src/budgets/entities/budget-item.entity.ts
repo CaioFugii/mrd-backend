@@ -4,6 +4,7 @@ import {
   ManyToOne,
   Column,
   OneToMany,
+  JoinColumn,
 } from 'typeorm';
 import { Budget } from './budget.entity';
 import { BudgetItemAddon } from './budget-item-addon.entity';
@@ -26,6 +27,7 @@ export class BudgetItem {
   @ManyToOne(() => Budget, (budget) => budget.items, {
     onDelete: 'CASCADE',
   })
+  @JoinColumn({ name: 'budgetId' })
   budget: Budget;
 
   @ManyToOne(() => Product, { eager: true })

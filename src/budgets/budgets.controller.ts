@@ -7,6 +7,7 @@ import {
   UseGuards,
   Param,
   Patch,
+  Put,
 } from '@nestjs/common';
 import { BudgetsService } from './budgets.service';
 import { CreateBudgetDto } from './dto/create-budget.dto';
@@ -28,6 +29,16 @@ export class BudgetsController {
     @CurrentUser() user: User,
   ) {
     const data = await this.budgetsService.create(createBudgetDto, user);
+    return this.mapperBudget(data);
+  }
+
+  @Put(':id')
+  async update(
+    @Param('id') id: string,
+    @Body() dto: CreateBudgetDto,
+    @CurrentUser() user: User,
+  ) {
+    const data = await this.budgetsService.update(id, dto, user);
     return this.mapperBudget(data);
   }
 
@@ -72,6 +83,7 @@ export class BudgetsController {
       customerPhone: data.customerPhone,
       discountPercent: data.discountPercent,
       requiresApproval: data.requiresApproval,
+      issueInvoice: data.issueInvoice,
       approved: data.approved,
       approvedAt: data.approvedAt,
       rejected: data.rejected,

@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
@@ -177,6 +178,17 @@ export class BudgetsService {
     return subtotal - discount;
   }
 
+  private calculateIssueInvoicePercent(total: number, enable: boolean) {
+    if (enable) {
+      const issueInvoicePercent =
+        Number(process.env.ISSUE_INVOICE_PERCENT) ?? 0;
+      const issueInvoiceValue = (total * issueInvoicePercent) / 100;
+      return total + issueInvoiceValue;
+    }
+
+    return total;
+  }
+
   async create(createDto: CreateBudgetDto, user: User): Promise<Budget> {
     if (!createDto.items.length) {
       throw new BadRequestException('Este orçamento precisa possuir itens.');
@@ -226,11 +238,103 @@ export class BudgetsService {
       await budgetItemAddonRepo.save(allItemAddons);
 
       const total = this.calculateTotal(budgetItems, discountPercent);
-      budget.total = total;
+
+      budget.total = this.calculateIssueInvoicePercent(
+        total,
+        budget.issueInvoice,
+      );
+
       await budgetRepo.save(budget);
 
       return budgetRepo.findOneOrFail({
         where: { id: budget.id },
+        relations: ['items', 'items.addons'],
+      });
+    });
+  }
+
+  async update(
+    id: string,
+    createDto: CreateBudgetDto,
+    user: User,
+  ): Promise<Budget> {
+    if (!createDto.items.length) {
+      throw new BadRequestException('Este orçamento precisa possuir itens.');
+    }
+
+    const discountPercent = createDto.discountPercent || 0;
+    const requiresApproval = discountPercent > MAX_DISCOUNT;
+    const approved = !requiresApproval;
+
+    return this.dataSource.transaction(async (manager) => {
+      const budgetRepo = manager.getRepository(Budget);
+      const budgetItemRepo = manager.getRepository(BudgetItem);
+      const budgetItemAddonRepo = manager.getRepository(BudgetItemAddon);
+      const productRepo = manager.getRepository(Product);
+
+      const budget = await budgetRepo.findOne({
+        where: { id },
+        relations: ['items', 'items.addons'],
+      });
+
+      const budgetToUpdate = budgetRepo.create({ ...budget });
+
+      if (budget.seller.id !== user.id && user.role !== UserRole.SUPER_USER) {
+        throw new UnauthorizedException(
+          'Usuário não possui autorização para editar este orçamento',
+        );
+      }
+
+      if (!budget) {
+        throw new NotFoundException('Orçamento não encontrado.');
+      }
+
+      budgetToUpdate.customerName = createDto.customerName;
+      budgetToUpdate.customerEmail = createDto.customerEmail || null;
+      budgetToUpdate.customerPhone = createDto.customerPhone;
+      budgetToUpdate.discountPercent = discountPercent;
+      budgetToUpdate.requiresApproval = requiresApproval;
+      budgetToUpdate.approved = approved;
+      budgetToUpdate.approvedAt = approved ? new Date() : null;
+      budgetToUpdate.approvedBy = null;
+      budgetToUpdate.rejected = false;
+      budgetToUpdate.rejectedAt = null;
+      budgetToUpdate.rejectedBy = null;
+      budgetToUpdate.rejectionReason = null;
+
+      await budgetRepo.save(budgetToUpdate);
+
+      const products = await this.fetchProductsWithAddonsTransactional(
+        createDto.items.map((i) => i.productId),
+        productRepo,
+      );
+
+      const budgetItems = this.buildBudgetItems(
+        createDto.items,
+        products,
+        budgetToUpdate,
+        budgetItemRepo,
+      );
+
+      await budgetItemRepo.save(budgetItems);
+
+      const allItemAddons = this.buildItemAddons(
+        createDto.items,
+        budgetItems,
+        products,
+        budgetItemAddonRepo,
+      );
+
+      await budgetItemRepo.save(budgetItems);
+      await budgetItemAddonRepo.save(allItemAddons);
+
+      const total = this.calculateTotal(budgetItems, discountPercent);
+      budgetToUpdate.total = total;
+
+      await budgetRepo.save(budgetToUpdate);
+
+      return budgetRepo.findOneOrFail({
+        where: { id: budgetToUpdate.id },
         relations: ['items', 'items.addons'],
       });
     });
@@ -248,6 +352,7 @@ export class BudgetsService {
       customerName: dto.customerName,
       customerEmail: dto.customerEmail,
       customerPhone: dto.customerPhone,
+      issueInvoice: dto.issueInvoice,
       requiresApproval,
       discountPercent,
       approved,
