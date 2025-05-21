@@ -13,6 +13,11 @@ export class BudgetQueryDto {
   onlyPendingApproval?: boolean;
 
   @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  onlySold?: boolean;
+
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
   page?: number;

@@ -62,6 +62,10 @@ export class BudgetsService {
       qb.andWhere('budget.requiresApproval = true AND budget.approved = false');
     }
 
+    if (query.onlySold) {
+      qb.andWhere(`budget.status = ${BudgetStatus.VENDIDO}`);
+    }
+
     qb.orderBy('budget.createdAt', query.orderBy || 'DESC');
 
     const page = query.page || 1;
