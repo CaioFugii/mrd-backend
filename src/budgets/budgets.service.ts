@@ -15,6 +15,7 @@ import { BudgetQueryDto } from './dto/budget-query.dto';
 import { MAX_COMMISSION, MAX_DISCOUNT } from 'src/shared/constants';
 import { Product } from 'src/products/entities/product.entity';
 import { BudgetItemAddon } from './entities/budget-item-addon.entity';
+import { UpdateBudgetDetailsDto } from './dto/update-details-budget.dto';
 
 @Injectable()
 export class BudgetsService {
@@ -232,6 +233,22 @@ export class BudgetsService {
     return total + totalWithCommission;
   }
 
+  private calculateBudgetTotal(
+    items: BudgetItem[],
+    discountPercent: number,
+    commissionPercent: number,
+    issueInvoice: boolean,
+  ) {
+    const totalWithDiscount = this.calculateTotalItems(items, discountPercent);
+
+    const totalWithCommission = this.calculateCommissionPercent(
+      totalWithDiscount,
+      commissionPercent,
+    );
+
+    return this.calculateIssueInvoicePercent(totalWithCommission, issueInvoice);
+  }
+
   async create(createDto: CreateBudgetDto, user: User): Promise<Budget> {
     if (!createDto.items.length) {
       throw new BadRequestException('Este orçamento precisa possuir itens.');
@@ -286,18 +303,10 @@ export class BudgetsService {
       await budgetItemRepo.save(budgetItems);
       await budgetItemAddonRepo.save(allItemAddons);
 
-      const totalWithDiscount = this.calculateTotalItems(
+      budget.total = this.calculateBudgetTotal(
         budgetItems,
         discountPercent,
-      );
-
-      const totalWithCommission = this.calculateCommissionPercent(
-        totalWithDiscount,
         budget.commissionPercent,
-      );
-
-      budget.total = this.calculateIssueInvoicePercent(
-        totalWithCommission,
         budget.issueInvoice,
       );
 
@@ -310,90 +319,74 @@ export class BudgetsService {
     });
   }
 
-  async update(
+  async updateDetails(
     id: string,
-    createDto: CreateBudgetDto,
+    dto: UpdateBudgetDetailsDto,
     user: User,
   ): Promise<Budget> {
-    if (!createDto.items.length) {
-      throw new BadRequestException('Este orçamento precisa possuir itens.');
+    const budget = await this.budgetRepo.findOneOrFail({
+      where: { id },
+      relations: ['seller'],
+    });
+
+    if (budget.seller.id !== user.id && user.role !== UserRole.SUPER_USER) {
+      throw new UnauthorizedException();
     }
 
-    const discountPercent = createDto.discountPercent || 0;
-    const requiresApproval = discountPercent > MAX_DISCOUNT;
-    const approved = !requiresApproval;
+    budget.customerName = dto.customerName;
+    budget.customerEmail = dto.customerEmail || null;
+    budget.customerPhone = dto.customerPhone;
+    budget.discountPercent = dto.discountPercent;
 
+    budget.requiresApproval = dto.discountPercent > MAX_DISCOUNT;
+    budget.approved = !budget.requiresApproval;
+    budget.approvedAt = budget.approved ? new Date() : null;
+    budget.approvedBy = null;
+    budget.rejected = false;
+    budget.rejectedAt = null;
+    budget.rejectedBy = null;
+    budget.rejectionReason = null;
+
+    budget.total = this.calculateBudgetTotal(
+      budget.items,
+      budget.discountPercent,
+      budget.commissionPercent,
+      budget.issueInvoice,
+    );
+
+    await this.budgetRepo.save(budget);
+    return budget;
+  }
+
+  async deleteItem(id: string, productId: string, user: User): Promise<Budget> {
     return this.dataSource.transaction(async (manager) => {
       const budgetRepo = manager.getRepository(Budget);
-      const budgetItemRepo = manager.getRepository(BudgetItem);
-      const budgetItemAddonRepo = manager.getRepository(BudgetItemAddon);
-      const productRepo = manager.getRepository(Product);
+      const itemRepo = manager.getRepository(BudgetItem);
 
-      const budget = await budgetRepo.findOne({
+      const budget = await budgetRepo.findOneOrFail({
+        where: { id },
+        relations: ['seller', 'items', 'items.addons'],
+      });
+
+      if (budget.seller.id !== user.id && user.role !== UserRole.SUPER_USER) {
+        throw new UnauthorizedException();
+      }
+
+      await itemRepo.delete({ id: productId });
+
+      const newBudget = await budgetRepo.findOneOrFail({
         where: { id },
         relations: ['items', 'items.addons'],
       });
 
-      const budgetToUpdate = budgetRepo.create({ ...budget });
-
-      if (budget.seller.id !== user.id && user.role !== UserRole.SUPER_USER) {
-        throw new UnauthorizedException(
-          'Usuário não possui autorização para editar este orçamento',
-        );
-      }
-
-      if (!budget) {
-        throw new NotFoundException('Orçamento não encontrado.');
-      }
-
-      budgetToUpdate.customerName = createDto.customerName;
-      budgetToUpdate.customerEmail = createDto.customerEmail || null;
-      budgetToUpdate.customerPhone = createDto.customerPhone;
-      budgetToUpdate.discountPercent = discountPercent;
-      budgetToUpdate.requiresApproval = requiresApproval;
-      budgetToUpdate.approved = approved;
-      budgetToUpdate.approvedAt = approved ? new Date() : null;
-      budgetToUpdate.approvedBy = null;
-      budgetToUpdate.rejected = false;
-      budgetToUpdate.rejectedAt = null;
-      budgetToUpdate.rejectedBy = null;
-      budgetToUpdate.rejectionReason = null;
-
-      await budgetRepo.save(budgetToUpdate);
-
-      const products = await this.fetchProductsWithAddonsTransactional(
-        createDto.items.map((i) => i.productId),
-        productRepo,
+      newBudget.total = this.calculateBudgetTotal(
+        newBudget.items,
+        newBudget.discountPercent,
+        newBudget.commissionPercent,
+        newBudget.issueInvoice,
       );
 
-      const budgetItems = this.buildBudgetItems(
-        createDto.items,
-        products,
-        budgetToUpdate,
-        budgetItemRepo,
-      );
-
-      await budgetItemRepo.save(budgetItems);
-
-      const allItemAddons = this.buildItemAddons(
-        createDto.items,
-        budgetItems,
-        products,
-        budgetItemAddonRepo,
-      );
-
-      await budgetItemRepo.save(budgetItems);
-      await budgetItemAddonRepo.save(allItemAddons);
-
-      const total = this.calculateTotalItems(budgetItems, discountPercent);
-      budgetToUpdate.total = total;
-
-      await budgetRepo.save(budgetToUpdate);
-
-      return budgetRepo.findOneOrFail({
-        where: { id: budgetToUpdate.id },
-        relations: ['items', 'items.addons'],
-      });
+      return await budgetRepo.save(newBudget);
     });
   }
 

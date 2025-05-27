@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Put,
+  Delete,
 } from '@nestjs/common';
 import { BudgetsService } from './budgets.service';
 import { CreateBudgetDto } from './dto/create-budget.dto';
@@ -17,6 +18,7 @@ import { User, UserRole } from 'src/users/entities/user.entity';
 import { Roles, RolesGuard } from 'src/shared/guard/roles.guard';
 import { BudgetQueryDto } from './dto/budget-query.dto';
 import { Budget } from './entities/budget.entity';
+import { UpdateBudgetDetailsDto } from './dto/update-details-budget.dto';
 
 @Controller('budgets')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -32,14 +34,23 @@ export class BudgetsController {
     return this.mapperBudget(data);
   }
 
-  @Put(':id')
-  async update(
+  @Put('/:id/details')
+  async updateDetails(
     @Param('id') id: string,
-    @Body() dto: CreateBudgetDto,
+    @Body() dto: UpdateBudgetDetailsDto,
     @CurrentUser() user: User,
   ) {
-    const data = await this.budgetsService.update(id, dto, user);
+    const data = await this.budgetsService.updateDetails(id, dto, user);
     return this.mapperBudget(data);
+  }
+
+  @Delete('/:id/items/:productId')
+  async deleteItem(
+    @Param('id') id: string,
+    @Param('productId') productId: string,
+    @CurrentUser() user: User,
+  ) {
+    await this.budgetsService.deleteItem(id, productId, user);
   }
 
   @Get()
