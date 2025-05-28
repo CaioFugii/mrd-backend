@@ -19,6 +19,7 @@ import { Roles, RolesGuard } from 'src/shared/guard/roles.guard';
 import { BudgetQueryDto } from './dto/budget-query.dto';
 import { Budget } from './entities/budget.entity';
 import { UpdateBudgetDetailsDto } from './dto/update-details-budget.dto';
+import { AddItemDto } from './dto/add-item.dto';
 
 @Controller('budgets')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -51,6 +52,16 @@ export class BudgetsController {
     @CurrentUser() user: User,
   ) {
     await this.budgetsService.deleteItem(id, productId, user);
+  }
+
+  @Post('/:id/items')
+  async addItem(
+    @Param('id') id: string,
+    @Body() addItemDto: AddItemDto,
+    @CurrentUser() user: User,
+  ) {
+    const budget = await this.budgetsService.addItem(id, addItemDto, user);
+    return budget.items;
   }
 
   @Get()

@@ -16,6 +16,7 @@ import { MAX_COMMISSION, MAX_DISCOUNT } from 'src/shared/constants';
 import { Product } from 'src/products/entities/product.entity';
 import { BudgetItemAddon } from './entities/budget-item-addon.entity';
 import { UpdateBudgetDetailsDto } from './dto/update-details-budget.dto';
+import { AddItemDto } from './dto/add-item.dto';
 
 @Injectable()
 export class BudgetsService {
@@ -390,6 +391,61 @@ export class BudgetsService {
     });
   }
 
+  async addItem(id: string, addItemDto: AddItemDto, user: User) {
+    return this.dataSource.transaction(async (manager) => {
+      const budgetRepo = manager.getRepository(Budget);
+      const budgetItemRepo = manager.getRepository(BudgetItem);
+      const budgetItemAddonRepo = manager.getRepository(BudgetItemAddon);
+      const productRepo = manager.getRepository(Product);
+
+      const budget = await budgetRepo.findOneOrFail({
+        where: { id },
+        relations: ['seller', 'items', 'items.addons'],
+      });
+
+      if (budget.seller.id !== user.id && user.role !== UserRole.SUPER_USER) {
+        throw new UnauthorizedException();
+      }
+
+      const products = await this.fetchProductsWithAddonsTransactional(
+        [addItemDto.item.productId],
+        productRepo,
+      );
+
+      const budgetItems = this.buildBudgetItems(
+        [addItemDto.item],
+        products,
+        budget,
+        budgetItemRepo,
+      );
+
+      await budgetItemRepo.save(budgetItems);
+      const allItemAddons = this.buildItemAddons(
+        [addItemDto.item],
+        budgetItems,
+        products,
+        budgetItemAddonRepo,
+      );
+
+      await budgetItemRepo.save(budgetItems);
+      await budgetItemAddonRepo.save(allItemAddons);
+
+      const newBudget = await budgetRepo.findOneOrFail({
+        where: { id },
+        relations: ['items', 'items.addons'],
+      });
+
+      newBudget.total = this.calculateBudgetTotal(
+        newBudget.items,
+        newBudget.discountPercent,
+        newBudget.commissionPercent,
+        newBudget.issueInvoice,
+      );
+
+      return await budgetRepo.save(newBudget);
+    });
+  }
+
   private async createInitialBudgetTransactional(
     dto: CreateBudgetDto,
     user: User,
@@ -451,8 +507,7 @@ export class BudgetsService {
       }
 
       const productPrice = Number(product.price);
-
-      return budgetItemRepo.create({
+      const newBudgetItem = budgetItemRepo.create({
         product,
         productNameSnapshot: product.name,
         productPriceSnapshot: productPrice,
@@ -460,6 +515,7 @@ export class BudgetsService {
         budget,
         addons: [],
       });
+      return newBudgetItem;
     });
   }
 
