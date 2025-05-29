@@ -17,6 +17,7 @@ import { Product } from 'src/products/entities/product.entity';
 import { BudgetItemAddon } from './entities/budget-item-addon.entity';
 import { UpdateBudgetDetailsDto } from './dto/update-details-budget.dto';
 import { AddItemDto } from './dto/add-item.dto';
+import { UpdateAddonsDto } from './dto/update-addons.dto';
 
 @Injectable()
 export class BudgetsService {
@@ -428,6 +429,74 @@ export class BudgetsService {
       );
 
       await budgetItemRepo.save(budgetItems);
+      await budgetItemAddonRepo.save(allItemAddons);
+
+      const newBudget = await budgetRepo.findOneOrFail({
+        where: { id },
+        relations: ['items', 'items.addons'],
+      });
+
+      newBudget.total = this.calculateBudgetTotal(
+        newBudget.items,
+        newBudget.discountPercent,
+        newBudget.commissionPercent,
+        newBudget.issueInvoice,
+      );
+
+      return await budgetRepo.save(newBudget);
+    });
+  }
+
+  async updateAddons(id: string, updateAddonsDto: UpdateAddonsDto, user: User) {
+    return this.dataSource.transaction(async (manager) => {
+      const budgetRepo = manager.getRepository(Budget);
+      const budgetItemRepo = manager.getRepository(BudgetItem);
+      const budgetItemAddonRepo = manager.getRepository(BudgetItemAddon);
+      const productRepo = manager.getRepository(Product);
+
+      const budget = await budgetRepo.findOneOrFail({
+        where: { id },
+        relations: ['seller', 'items', 'items.addons'],
+      });
+
+      if (budget.seller.id !== user.id && user.role !== UserRole.SUPER_USER) {
+        throw new UnauthorizedException();
+      }
+
+      await budgetItemAddonRepo.delete({
+        item: { id: updateAddonsDto.budgetItemId },
+      });
+
+      const products = await this.fetchProductsWithAddonsTransactional(
+        [updateAddonsDto.productId],
+        productRepo,
+      );
+
+      const budgetItem = await budgetItemRepo.findOne({
+        where: { id: updateAddonsDto.budgetItemId },
+      });
+
+      const allItemAddons = this.buildItemAddons(
+        [
+          {
+            productId: updateAddonsDto.productId,
+            addons: updateAddonsDto.addons,
+          },
+        ],
+        [budgetItem],
+        products,
+        budgetItemAddonRepo,
+      );
+
+      const totalPriceAddons = allItemAddons.reduce(
+        (acc, current) => acc + current.totalPrice,
+        0,
+      );
+
+      budgetItem.totalPrice =
+        Number(budgetItem.product.price) + totalPriceAddons;
+
+      await budgetItemRepo.save(budgetItem);
       await budgetItemAddonRepo.save(allItemAddons);
 
       const newBudget = await budgetRepo.findOneOrFail({

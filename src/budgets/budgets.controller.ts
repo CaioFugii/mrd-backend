@@ -20,6 +20,7 @@ import { BudgetQueryDto } from './dto/budget-query.dto';
 import { Budget } from './entities/budget.entity';
 import { UpdateBudgetDetailsDto } from './dto/update-details-budget.dto';
 import { AddItemDto } from './dto/add-item.dto';
+import { UpdateAddonsDto } from './dto/update-addons.dto';
 
 @Controller('budgets')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -61,6 +62,20 @@ export class BudgetsController {
     @CurrentUser() user: User,
   ) {
     const budget = await this.budgetsService.addItem(id, addItemDto, user);
+    return budget.items;
+  }
+
+  @Put('/:id/addons')
+  async updateAddons(
+    @Param('id') id: string,
+    @Body() updateAddonsDto: UpdateAddonsDto,
+    @CurrentUser() user: User,
+  ) {
+    const budget = await this.budgetsService.updateAddons(
+      id,
+      updateAddonsDto,
+      user,
+    );
     return budget.items;
   }
 
