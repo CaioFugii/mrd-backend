@@ -339,7 +339,8 @@ export class BudgetsService {
     budget.customerEmail = dto.customerEmail || null;
     budget.customerPhone = dto.customerPhone;
     budget.discountPercent = dto.discountPercent;
-
+    budget.issueInvoice = dto.issueInvoice;
+    budget.commissionPercent = dto.commissionPercent;
     budget.requiresApproval = dto.discountPercent > MAX_DISCOUNT;
     budget.approved = !budget.requiresApproval;
     budget.approvedAt = budget.approved ? new Date() : null;
